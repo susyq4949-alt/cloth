@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="ko">
 <head>
@@ -666,13 +667,30 @@ async function takePhoto(){
  <div class="modalBtns"><button class="btnGhost" id="mClose">닫기</button><button class="btnMain" id="mSave">이미지 저장하기</button></div>`;
  $('shotImg').src=url;$('modal').hidden=false;$('mClose').onclick=closeModal;$('mSave').focus();
  $('mSave').onclick=async()=>{
-  const tip=$('shotTip');const dl=await dlP;
-  if(!dl){tip.textContent='여기서는 바로 저장이 안 돼요. 사진을 길게 누르거나(태블릿) 오른쪽 클릭(컴퓨터)해서 저장해 주세요.';return;}
-  try{await dl.save({filename:fname,data:blob});tip.textContent='저장했어요! 다운로드 폴더(또는 사진 앱)를 확인해 보세요.';}
-  catch(e){
-   if(e&&e.code==='declined')tip.textContent='저장을 취소했어요.';
-   else if(e&&e.code==='rate_limited')tip.textContent='잠시 후 다시 눌러 주세요.';
-   else tip.textContent='여기서는 바로 저장이 안 돼요. 사진을 길게 누르거나 오른쪽 클릭해서 저장해 주세요.';
+  const tip=$('shotTip');
+  const inClaude=!!(window.claude&&typeof window.claude.use==='function');
+  // 1) Claude 안에서 열렸을 때
+  if(inClaude){
+   const dl=await dlP;
+   if(dl){
+    try{await dl.save({filename:fname,data:blob});tip.textContent='저장했어요! 다운로드 폴더(또는 사진 앱)를 확인해 보세요.';return;}
+    catch(e){if(e&&e.code==='declined'){tip.textContent='저장을 취소했어요.';return;}}
+   }
+  }
+  // 2) 휴대폰·태블릿: 공유 창으로 사진 앱에 저장
+  const file=new File([blob],fname,{type:'image/png'});
+  const touch=matchMedia('(pointer:coarse)').matches;
+  if(touch&&navigator.canShare&&navigator.canShare({files:[file]})){
+   try{await navigator.share({files:[file],title:'기후 옷 입히기 완성 사진'});tip.textContent='공유 창에서 "이미지 저장"을 누르면 사진 앱에 저장돼요.';return;}
+   catch(e){if(e&&e.name==='AbortError'){tip.textContent='저장을 취소했어요.';return;}}
+  }
+  // 3) 컴퓨터(크롬북 포함): 바로 다운로드
+  try{
+   const a=document.createElement('a');a.href=url;a.download=fname;a.rel='noopener';
+   document.body.appendChild(a);a.click();a.remove();
+   tip.textContent='저장했어요! 다운로드 폴더를 확인해 보세요.';
+  }catch(e){
+   tip.textContent='자동 저장이 막혀 있어요. 사진을 길게 누르거나 오른쪽 클릭해서 "이미지 저장"을 눌러 주세요.';
   }
  };
 }
